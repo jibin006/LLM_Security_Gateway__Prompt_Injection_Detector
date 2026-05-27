@@ -96,7 +96,7 @@ The single false positive: `"The customer wants to extract data from the CSV fil
 
 ## Key Design Decisions
 
-Full reasoning in [`DECISIONS.md`](./DECISIONS.md). Short version:
+Full reasoning in [`DECISIONS.md`](./Decisions.md). Short version:
 
 **Regex over embedding similarity**: Embedding-based detection would compare input against known attack embeddings (cosine similarity) — more flexible, catches novel attacks better. Cost: 100–200ms per request. Pattern matching costs 0.19ms. At inference time on a high-throughput endpoint, that's not a trade-off — it's a different architecture decision. Embedding detection belongs in an async enrichment pipeline, not the synchronous hot path.
 
@@ -108,7 +108,7 @@ Full reasoning in [`DECISIONS.md`](./DECISIONS.md). Short version:
 
 ## Failure Log
 
-What broke during build and what it revealed — see [`FAILURES.md`](./FAILURES.md).
+What broke during build and what it revealed — see [`FAILURES.md`](./Failures.md).
 
 ---
 
