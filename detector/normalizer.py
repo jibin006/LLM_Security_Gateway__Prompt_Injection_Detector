@@ -116,7 +116,7 @@ class InputNormalizer:
             "how", "in", "is", "it", "me", "my", "no", "not", "of", "on",
             "or", "our", "out", "to", "up", "us", "was", "we", "why", "you",
         }
-        pattern = re.compile(r"(?<!\\w)([A-Za-z] ){1,}[A-Za-z](?!\\w)")
+        pattern = re.compile(r"(?<!\w)([A-Za-z] ){1,}[A-Za-z](?!\w)")
 
         def collapse_match(match: re.Match) -> str:
             original = match.group(0)
