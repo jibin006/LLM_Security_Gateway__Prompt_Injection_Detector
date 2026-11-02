@@ -114,7 +114,7 @@ class InputNormalizer:
         short_control_words = {
             "all", "and", "are", "but", "can", "do", "for", "get", "has",
             "how", "in", "is", "it", "me", "my", "no", "not", "of", "on",
-            "or", "our", "out", "to", "up", "us", "was", "we", "why", "you",
+            "or", "our", "out", "to", "up", "was", "we", "why", "you",
         }
         pattern = re.compile(r"(?<!\w)([A-Za-z] ){1,}[A-Za-z](?!\w)")
 
