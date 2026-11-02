@@ -150,7 +150,6 @@ def run_full_report():
     print(f"\n[BENIGN — {len(BENIGN_PAYLOADS)} payloads]")
     for payload in BENIGN_PAYLOADS:
         result = d.analyze(payload["input"], source="user_input")
-        latencies.append(result.latency_ms)
         triggered = result.is_malicious
         is_known_fp = payload.get("known_fp", False)
         if triggered and is_known_fp:
