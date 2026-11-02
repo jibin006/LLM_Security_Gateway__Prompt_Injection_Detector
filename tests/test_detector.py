@@ -125,7 +125,6 @@ def run_full_report():
     Use this to generate the numbers for README and interview story.
     """
     d = PromptInjectionDetector()
-    latencies = []
 
     print("\n" + "=" * 70)
     print("LLM Security Gateway — Detection Benchmark")
@@ -137,7 +136,6 @@ def run_full_report():
     print(f"\n[MALICIOUS — {len(MALICIOUS_PAYLOADS)} payloads]")
     for payload in MALICIOUS_PAYLOADS:
         result = d.analyze(payload["input"], source=payload.get("source", "user_input"))
-        latencies.append(result.latency_ms)
         detected = result.is_malicious
         mal_detected += int(detected)
         status = "✓ DETECTED" if detected else "✗ MISSED  "
@@ -147,7 +145,7 @@ def run_full_report():
 
     # Benign
     fp_count = 0
-    known_fp_count = sum(1 for p in BENIGN_PAYLOADS if p.get("known_fp"))
+    known_fp_detected = 0
     false_positives = []
     print(f"\n[BENIGN — {len(BENIGN_PAYLOADS)} payloads]")
     for payload in BENIGN_PAYLOADS:
@@ -155,7 +153,9 @@ def run_full_report():
         latencies.append(result.latency_ms)
         triggered = result.is_malicious
         is_known_fp = payload.get("known_fp", False)
-        if triggered and not is_known_fp:
+        if triggered and is_known_fp:
+            known_fp_detected += 1
+        elif triggered:
             fp_count += 1
             false_positives.append((payload, result))
         status = "✓ CLEAN   " if not triggered else ("~ KNOWN FP" if is_known_fp else "✗ FALSE POS")
@@ -164,20 +164,39 @@ def run_full_report():
 
     # Stats
     detection_rate = mal_detected / len(MALICIOUS_PAYLOADS) * 100
-    fp_rate = (fp_count + known_fp_count) / len(BENIGN_PAYLOADS) * 100
+    fp_total = fp_count + known_fp_detected
+    fp_rate = fp_total / len(BENIGN_PAYLOADS) * 100
 
     print("\n" + "=" * 70)
     print("RESULTS")
     print("=" * 70)
     print(f"  Detection rate    : {mal_detected}/{len(MALICIOUS_PAYLOADS)} = {detection_rate:.1f}%")
-    print(f"  False positive rate: {fp_count + known_fp_count}/{len(BENIGN_PAYLOADS)} = {fp_rate:.1f}%")
+    print(f"  False positive rate: {fp_total}/{len(BENIGN_PAYLOADS)} = {fp_rate:.1f}%")
     print(f"  False negative rate: {len(mal_missed)}/{len(MALICIOUS_PAYLOADS)} = {100 - detection_rate:.1f}%")
 
-    print("\nLATENCY")
+    # Warm the detector, then measure 1,000 calls across the same fixed corpus.
+    # This is a function-level microbenchmark, not HTTP or model-inference latency.
+    all_payloads = MALICIOUS_PAYLOADS + BENIGN_PAYLOADS
+    for _ in range(10):
+        for payload in all_payloads:
+            d.analyze(payload["input"], source=payload.get("source", "user_input"))
+
+    latencies = []
+    for index in range(1000):
+        payload = all_payloads[index % len(all_payloads)]
+        start = time.perf_counter()
+        d.analyze(payload["input"], source=payload.get("source", "user_input"))
+        latencies.append((time.perf_counter() - start) * 1000)
+
+    ordered_latencies = sorted(latencies)
+    p95 = ordered_latencies[round(0.95 * (len(ordered_latencies) - 1))]
+    p99 = ordered_latencies[round(0.99 * (len(ordered_latencies) - 1))]
+
+    print("\nLATENCY (1,000 warmed function calls)")
     print(f"  Average  : {statistics.mean(latencies):.3f}ms")
     print(f"  Median   : {statistics.median(latencies):.3f}ms")
-    print(f"  P95      : {sorted(latencies)[int(len(latencies) * 0.95)]:.3f}ms")
-    print(f"  P99      : {sorted(latencies)[int(len(latencies) * 0.99)]:.3f}ms")
+    print(f"  P95      : {p95:.3f}ms")
+    print(f"  P99      : {p99:.3f}ms")
     print(f"  Max      : {max(latencies):.3f}ms")
 
     if mal_missed:
