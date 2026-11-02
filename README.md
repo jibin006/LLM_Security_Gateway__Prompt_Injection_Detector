@@ -1,8 +1,10 @@
 # LLM Security Gateway
 
-A multi-layer inference security pipeline for hardening Vertex AI endpoints against prompt injection, indirect RAG poisoning, and sensitive data exfiltration. Built as a drop-in pre/post processing layer — sits between the API gateway and the model endpoint.
+A prototype for studying prompt-injection detection, RAG-context inspection, and output filtering around an LLM application. It is not currently a production drop-in security gateway.
 
 ---
+
+> **Implementation status:** `/safe-inference` currently calls a deterministic model stub. This repository does not make a live Vertex AI inference call and does not integrate Model Armor. The architecture diagram below is a target design, not evidence of a deployed integration. The detector is a mitigation layer, not a guarantee that prompt injection is prevented.
 
 ## What This Solves
 
@@ -14,7 +16,7 @@ An authenticated user inside the VPC, with valid credentials, calling through a 
 2. **No RAG context scanning** — indirect injection via poisoned documents is invisible to input-only detection  
 3. **No org-specific patterns** — custom employee IDs, internal account formats, domain-specific attack vectors are undetectable
 
-This gateway closes all three gaps.
+This prototype explores mitigations for these gaps. It does not establish that the gaps are fully closed.
 
 ---
 
@@ -27,7 +29,7 @@ Client Request
 API Gateway (auth, rate limiting, TLS termination)
       │
       ▼
-Layer 1: Model Armor (Google Managed)
+Layer 1: Model Armor (conceptual external layer; not integrated here)
       │  • Prompt injection / jailbreak detection
       │  • PII detection via Cloud DLP
       │  • Malicious URL detection  
@@ -43,7 +45,7 @@ Layer 2: Custom Detector  ◄─── This repo
       │  Latency: 0.19ms avg  |  Fail mode: CLOSED
       │
       ▼
-Vertex AI Endpoint (inference)
+Model inference (stub implementation in this repository)
       │
       ▼
 Layer 3: Output Filter  ◄─── This repo
@@ -75,22 +77,20 @@ Client Response
 
 ---
 
-## Measured Performance
+## Evaluation and Performance
 
-Benchmarked on 38 test cases (16 malicious, 22 benign edge cases). Latency measured via microbenchmark (1,000 iterations, warmed-up, isolated from container scheduler noise):
+The committed evaluation corpus contains 16 hand-curated malicious prompts and 22 benign edge cases. Run:
 
-| Metric | Value |
-|---|---|
-| Detection rate | 100% (16/16) |
-| False positive rate | 4.5% (1/22) |
-| False negative rate | 0% (0/16) |
-| Avg latency (microbenchmark) | 0.036ms |
-| P95 latency | 0.09ms |
-| Max latency | ~3ms (token flooding payload — heuristic analysis on 200-word input) |
+```bash
+make test
+make benchmark
+```
 
-**Latency note**: Container CI environments show high scheduler variance (40–380ms per call in a throttled environment). The microbenchmark number (1,000 warmed iterations, tight loop) represents the actual regex+heuristic cost. Production deployment on a real host shows sub-millisecond latency consistent with the microbenchmark.
+The test suite reports whether this fixed corpus is detected and prints the current benchmark measurements. A perfect result on 16 malicious examples is **not** evidence of general prompt-injection resistance. The corpus is small, hand-authored, and not an unseen or independently maintained red-team dataset. Add new attack families, paraphrases, multilingual inputs, indirect injections, tool-use attacks, and held-out evaluation data before making broader accuracy claims.
 
-The single false positive: `"The customer wants to extract data from the CSV file into a database"` — previously triggered `data_exfil_request`. After pattern narrowing (Iteration 2), this cleared. Current known FP: `"extract data"` in ETL context, documented in `payloads.py` `benign_008`. Pattern kept deliberately — see DECISIONS.md.
+The benchmark warms the detector and times 1,000 calls to the Python detection function over the same fixed corpus. These numbers measure local function latency only. They exclude HTTP handling, RAG retrieval, remote model inference, network delays, and deployment overhead. They are not production latency or an availability/SLO claim.
+
+Known false-positive fixtures are documented in `tests/payloads.py`. Keep the corpus versioned and report false positives and false negatives separately.
 
 ---
 

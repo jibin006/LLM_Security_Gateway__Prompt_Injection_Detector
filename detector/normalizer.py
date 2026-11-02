@@ -106,17 +106,24 @@ class InputNormalizer:
         """
         Detect and collapse letter-by-letter whitespace evasion.
 
-        Signal: sequence of 6+ single-character tokens (allows short acronyms).
-        Example: "i g n o r e   p r e v i o u s" → "ignore   previous"
-
-        Conservative threshold — only collapses when long runs of single chars
-        are detected, to avoid collapsing legitimate acronyms or spaced words.
+        Collapse long runs (6+ letters) and a small allowlist of common short
+        control words such as "all", "to", and "do". This catches phrases like
+        "i g n o r e   a l l   p r e v i o u s" without joining arbitrary
+        acronyms such as "U S" or "A B".
         """
-        # Match runs of single letters separated by spaces (6+ chars minimum)
-        pattern = re.compile(r"(?<!\w)([A-Za-z] ){5,}[A-Za-z](?!\w)")
+        short_control_words = {
+            "all", "and", "are", "but", "can", "do", "for", "get", "has",
+            "how", "in", "is", "it", "me", "my", "no", "not", "of", "on",
+            "or", "our", "out", "to", "up", "was", "we", "why", "you",
+        }
+        pattern = re.compile(r"(?<!\w)([A-Za-z] ){1,}[A-Za-z](?!\w)")
 
-        def collapse_match(m: re.Match) -> str:
-            return m.group(0).replace(" ", "")
+        def collapse_match(match: re.Match) -> str:
+            original = match.group(0)
+            joined = original.replace(" ", "")
+            if len(joined) >= 6 or joined.lower() in short_control_words:
+                return joined
+            return original
 
         return pattern.sub(collapse_match, text)
 
